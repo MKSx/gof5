@@ -328,6 +328,12 @@ func (l *vpnLink) WaitAndConfig(cfg *config.Config) {
 		}
 	}
 
+	if cfg.ExcludeSubnets != nil {
+		for _, v := range cfg.ExcludeSubnets {
+			routes.RemoveNet(v)
+		}
+	}
+
 	// exclude local DNS servers, when they are not located inside the LAN
 	for _, v := range l.resolvHandler.GetOriginalDNS() {
 		localDNS := &net.IPNet{
