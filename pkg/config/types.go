@@ -15,15 +15,16 @@ import (
 )
 
 type Config struct {
-	Debug       bool           `yaml:"-"`
-	Driver      string         `yaml:"driver"`
-	ListenDNS   net.IP         `yaml:"-"`
-	DNS         []string       `yaml:"dns"`
-	Routes      *netaddr.IPSet `yaml:"-"`
-	PPPdArgs    []string       `yaml:"pppdArgs"`
-	InsecureTLS bool           `yaml:"insecureTLS"`
-	DTLS        bool           `yaml:"dtls"`
-	IPv6        bool           `yaml:"ipv6"`
+	Debug          bool           `yaml:"-"`
+	Driver         string         `yaml:"driver"`
+	ListenDNS      net.IP         `yaml:"-"`
+	DNS            []string       `yaml:"dns"`
+	Routes         *netaddr.IPSet `yaml:"-"`
+	ExcludeSubnets []*net.IPNet   `yaml:"-"`
+	PPPdArgs       []string       `yaml:"pppdArgs"`
+	InsecureTLS    bool           `yaml:"insecureTLS"`
+	DTLS           bool           `yaml:"dtls"`
+	IPv6           bool           `yaml:"ipv6"`
 	// completely disable DNS servers handling
 	DisableDNS bool `yaml:"disableDNS"`
 	// rewrite /etc/resolv.conf instead of renaming
@@ -47,9 +48,10 @@ func (r *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type tmp Config
 	var s struct {
 		tmp
-		ListenDNS *string  `yaml:"listenDNS"`
-		Routes    []string `yaml:"routes"`
-		PPPdArgs  []string `yaml:"pppdArgs"`
+		ListenDNS      *string  `yaml:"listenDNS"`
+		Routes         []string `yaml:"routes"`
+		ExcludeSubnets []string `yaml:"excludeSubnets"`
+		PPPdArgs       []string `yaml:"pppdArgs"`
 	}
 
 	if err := unmarshal(&s.tmp); err != nil {
@@ -73,6 +75,15 @@ func (r *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return err
 		}
 		r.Routes = subnetsToIPSet(parsedCIDRs)
+	}
+
+	if s.ExcludeSubnets != nil {
+		// handle the case, when routes is an empty list
+		parsedCIDRs, err := parseCIDRs(s.ExcludeSubnets, net.IPv4len)
+		if err != nil {
+			return err
+		}
+		r.ExcludeSubnets = parsedCIDRs
 	}
 
 	// default pppd arguments
@@ -193,6 +204,7 @@ func (o *Object) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 		tmp
 		DNS             string `xml:"DNS0"`
 		DNS6            string `xml:"DNS6_0"`
+		LAN             string `xml:"LAN0"`
 		ExcludeSubnets  string `xml:"ExcludeSubnets0"`
 		ExcludeSubnets6 string `xml:"ExcludeSubnets6_0"`
 		TrafficControl  string `xml:"TrafficControl0"`
@@ -220,7 +232,13 @@ func (o *Object) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	o.ExcludeSubnets6 = processCIDRs(s.ExcludeSubnets6, net.IPv6len)
 
 	// TODO: support IPv6 routes
-	o.Routes = inverseCIDRs4(o.ExcludeSubnets)
+	routes := processCIDRs(s.LAN, net.IPv4len)
+
+	if len(routes) > 0 {
+		o.Routes = insertCIDRs4(routes, o.ExcludeSubnets)
+	} else {
+		o.Routes = inverseCIDRs4(o.ExcludeSubnets)
+	}
 
 	o.HDLCFraming, err = strToBool(s.HDLCFraming)
 	if err != nil {
@@ -277,6 +295,10 @@ func processIPs(ips string, length int) []net.IP {
 		return t
 	}
 	return nil
+}
+
+func ParseOptCIDR(list []string) ([]*net.IPNet, error) {
+	return parseCIDRs(list, net.IPv4len)
 }
 
 func parseCIDRs(cidrs []string, length int) ([]*net.IPNet, error) {
@@ -353,6 +375,21 @@ func subnetsToIPSet(subnets []*net.IPNet) *netaddr.IPSet {
 	}
 
 	// get a routes list
+	return ipSet4
+}
+
+func insertCIDRs4(list []*net.IPNet, exclude []*net.IPNet) *netaddr.IPSet {
+	// initialize an empty IPSet
+	ipSet4 := &netaddr.IPSet{}
+
+	for _, v := range list {
+		ipSet4.InsertNet(v)
+	}
+
+	for _, v := range exclude {
+		ipSet4.RemoveNet(v)
+	}
+
 	return ipSet4
 }
 

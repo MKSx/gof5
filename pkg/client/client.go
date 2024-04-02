@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/kayrus/gof5/pkg/config"
@@ -19,20 +20,32 @@ import (
 	"github.com/kayrus/gof5/pkg/link"
 )
 
+type excludeFlag []string
+
 type Options struct {
-	Server        string
-	Username      string
-	Password      string
-	SessionID     string
-	CACert        string
-	Cert          string
-	Key           string
-	CloseSession  bool
-	Debug         bool
-	Sel           bool
-	Version       bool
-	ProfileIndex  int
-	Renegotiation tls.RenegotiationSupport
+	Server         string
+	Username       string
+	Password       string
+	SessionID      string
+	CACert         string
+	Cert           string
+	Key            string
+	CloseSession   bool
+	Debug          bool
+	Sel            bool
+	Version        bool
+	ProfileIndex   int
+	Renegotiation  tls.RenegotiationSupport
+	ExcludeSubnets excludeFlag
+}
+
+func (i *excludeFlag) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
+func (i *excludeFlag) String() string {
+	return strings.Join(*i, " ")
 }
 
 func Connect(opts *Options) error {
@@ -66,6 +79,16 @@ func Connect(opts *Options) error {
 	cfg, err := config.ReadConfig(opts.Debug)
 	if err != nil {
 		return err
+	}
+
+	if len(opts.ExcludeSubnets) > 0 {
+		cidr, err := config.ParseOptCIDR(opts.ExcludeSubnets)
+
+		if err != nil {
+			return fmt.Errorf("failed to parse exclude subnets: %s", err)
+		}
+
+		cfg.ExcludeSubnets = cidr
 	}
 
 	switch cfg.Renegotiation {

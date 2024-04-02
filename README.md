@@ -108,6 +108,8 @@ Use `--select` to choose a VPN server from the list, known to a current server.
 
 Use `--profile-index` to define a custom F5 VPN profile index.
 
+Use `-exclude` to exclude subnets
+
 ### CA certificate and TLS keypair
 
 Use options below to specify custom TLS parameters:
@@ -159,4 +161,7 @@ dns:
 routes:
 - 1.2.3.4
 - 1.2.3.5/32
+
+excludeSubnets:
+- 192.168.1.0/24
 ```

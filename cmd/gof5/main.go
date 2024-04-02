@@ -42,6 +42,7 @@ func main() {
 	flag.BoolVar(&opts.Debug, "debug", false, "Show debug logs")
 	flag.BoolVar(&opts.Sel, "select", false, "Select a server from available F5 servers")
 	flag.IntVar(&opts.ProfileIndex, "profile-index", 0, "If multiple VPN profiles are found chose profile n")
+	flag.Var(&opts.ExcludeSubnets, "exclude", "Exclude subnets")
 	flag.BoolVar(&version, "version", false, "Show version and exit cleanly")
 
 	flag.Parse()
